@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-Camera Recorder Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .camera-box {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      border-radius: 8px;
+    }
+    video {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+    }
+    a.download-link {
+      display: block;
+      margin-top: 0.5rem;
+      color: blue;
+      text-decoration: underline;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <h2>Multi-Camera Recorder Dashboard</h2>
+  <div id="message">Loading cameras...</div>
+  <div id="cameraGrid" class="grid"></div>
+  <button id="recordBtn" disabled>Start Recording</button>
+
+  <script>
+    (function () {
+      const messageEl = document.getElementById('message');
+      const cameraGrid = document.getElementById('cameraGrid');
+      const recordBtn = document.getElementById('recordBtn');
+
+      let cameras = [];
+      let mediaStreams = {};
+      let mediaRecorders = {};
+      let recordedBlobs = {};
+      let isRecording = false;
+
+      // Video element refs by deviceId
+      const videoRefs = {};
+
+      // Request permission and enumerate video inputs
+      async function getCameras() {
+        try {
+          // Request permission for camera first
+          await navigator.mediaDevices.getUserMedia({ video: true });
+
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          cameras = devices.filter((device) => device.kind === 'videoinput');
+
+          if (cameras.length === 0) {
+            messageEl.textContent = 'No cameras found.';
+            recordBtn.disabled = true;
+            return;
+          }
+
+          messageEl.textContent = '';
+          renderCameraPreviews();
+          recordBtn.disabled = false;
+        } catch (err) {
+          messageEl.textContent = 'Error accessing cameras or permission denied.';
+          console.error(err);
+          recordBtn.disabled = true;
+        }
+      }
+
+      // Create video elements and start preview streams
+      async function renderCameraPreviews() {
+        cameraGrid.innerHTML = '';
+
+        for (const camera of cameras) {
+          const container = document.createElement('div');
+          container.className = 'camera-box';
+
+          const label = document.createElement('h4');
+          label.textContent = camera.label || `Camera ${camera.deviceId}`;
+          container.appendChild(label);
+
+          const video = document.createElement('video');
+          video.autoplay = true;
+          video.muted = true;
+          video.playsInline = true;
+          container.appendChild(video);
+
+          cameraGrid.appendChild(container);
+          videoRefs[camera.deviceId] = video;
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: camera.deviceId },
+              audio: false,
+            });
+            mediaStreams[camera.deviceId] = stream;
+            video.srcObject = stream;
+          } catch (err) {
+            console.error(`Could not get stream for camera ${camera.label}`, err);
+          }
+        }
+      }
+
+      function startRecording() {
+        mediaRecorders = {};
+        recordedBlobs = {};
+
+        cameras.forEach((camera) => {
+          const stream = mediaStreams[camera.deviceId];
+          if (!stream) return;
+
+          let options = { mimeType: 'video/webm; codecs=vp9' };
+          let mediaRecorder;
+
+          try {
+            mediaRecorder = new MediaRecorder(stream, options);
+          } catch (e) {
+            console.warn('Defaulting media recorder mimeType');
+            mediaRecorder = new MediaRecorder(stream);
+          }
+
+          const chunks = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              chunks.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            recordedBlobs[camera.deviceId] = new Blob(chunks, { type: 'video/webm' });
+            createDownloadLink(camera.deviceId, camera.label);
+          };
+
+          mediaRecorder.start();
+          mediaRecorders[camera.deviceId] = mediaRecorder;
+        });
+
+        isRecording = true;
+        recordBtn.textContent = 'Stop Recording';
+      }
+
+      function stopRecording() {
+        Object.values(mediaRecorders).forEach((mr) => {
+          if (mr.state !== 'inactive') mr.stop();
+        });
+        mediaRecorders = {};
+        isRecording = false;
+        recordBtn.textContent = 'Start Recording';
+      }
+
+      // Create or update download links for each recorded video
+      function createDownloadLink(deviceId, label) {
+        // Remove old link if exists
+        const oldLink = document.getElementById(`download-${deviceId}`);
+        if (oldLink) oldLink.remove();
+
+        const blob = recordedBlobs[deviceId];
+        if (!blob) return;
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.id = `download-${deviceId}`;
+        link.className = 'download-link';
+        link.href = url;
+        link.download = `${label || deviceId}.webm`;
+        link.textContent = `Download recording for ${label || deviceId}`;
+
+        // Append below corresponding video box
+        const container = videoRefs[deviceId].parentNode;
+        container.appendChild(link);
+      }
+
+      // Button click handler
+      recordBtn.addEventListener('click', () => {
+        if (!isRecording) {
+          startRecording();
+        } else {
+          stopRecording();
+        }
+      });
+
+      // Init on page load
+      getCameras();
+    })();
+  </script>
+</body>
+</html>

@@ -1,13 +1,22 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  googleId: { type: String, required: true, unique: true },
+  // your existing user schema fields
+  googleId: String,
   displayName: String,
   firstName: String,
   lastName: String,
   email: String,
   photo: String,
-  createdAt: { type: Date, default: Date.now }
+
+  // Subscription fields
+  isSubscribed: {
+    type: Boolean,
+    default: false,
+  },
+  subscribedAt: {
+    type: Date,
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);
