@@ -1,480 +1,772 @@
 <!DOCTYPE html>
-<html lang="en" >
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Camera Recorder & User Dashboard - Multi Cam</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .hidden { display: none; }
-    #videoPlayerContainer {
-      margin-top: 20px;
-    }
-    video {
-      max-width: 100%;
-      border-radius: 8px;
-    }
-    /* Grid for multi-cam live view */
-    #multiCamContainer {
-      display: grid;
-      grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-    video.live-cam {
-      width: 100%;
-      height: 180px;
-      border-radius: 8px;
-      object-fit: cover;
-      border: 2px solid #3b82f6;
-      box-shadow: 0 0 8px #3b82f6;
-    }
-  </style>
-</head>
-<body class="bg-gradient-to-br from-cyan-100 to-blue-100 min-h-screen font-poppins text-gray-800 p-6">
-
-<% if (!user) { %>
-  <div class="max-w-md mx-auto mt-20 p-8 bg-white rounded-lg shadow-lg text-center">
-    <h1 class="text-2xl font-semibold mb-4">Welcome, Guest!</h1>
-    <p class="mb-6">Please <a href="/login" class="text-blue-600 underline">log in</a> or <a href="/register" class="text-blue-600 underline">register</a> to access your dashboard.</p>
-  </div>
-<% } else { %>
-
-  <div class="max-w-6xl mx-auto bg-white bg-opacity-90 rounded-lg shadow-lg p-8 space-y-10">
-
-    <!-- Header -->
-    <header class="flex flex-wrap items-center gap-4 p-4 bg-white shadow-md rounded-md max-w-6xl mx-auto">
-      <img
-        src="<%= user.photos?.[0]?.value || '/default-profile.png' %>"
-        alt="Profile Photo"
-        referrerpolicy="no-referrer"
-        onerror="this.onerror=null;this.src='/default-profile.png';"
-        class="w-16 h-16 rounded-full object-cover border-4 border-blue-500 bg-gray-100 shadow-md transition-transform duration-300 hover:scale-105"
-      />
-      <h1 class="text-3xl font-semibold flex-grow text-gray-800 select-none">
-        Hello, <%= user.displayName || user.name || 'User' %>
-      </h1>
-      <form action="/logout" method="POST" class="ml-auto">
-        <button
-          type="submit"
-          class="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-semibold transition-shadow duration-300 shadow-md hover:shadow-lg"
-        >
-          Logout
-        </button>
-      </form>
-    </header>
-
-    <!-- Device Selection & Live Preview -->
-    <section class="mb-10 bg-white p-6 rounded shadow-md max-w-4xl mx-auto space-y-6">
-      <h2 class="text-2xl font-semibold mb-4 border-b border-gray-300 pb-2">Manage Devices & Record</h2>
-
-      <!-- Device Select + Connect + Save -->
-      <div class="flex gap-4 flex-wrap items-center">
-        <select id="deviceSelect" class="border border-gray-300 rounded px-3 py-2 w-full sm:w-auto flex-grow">
-          <option value="">Select Camera Device</option>
-        </select>
-        <button
-          id="connect-device-btn"
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition whitespace-nowrap"
-        >
-          Connect Device
-        </button>
-        <button
-          id="save-device-btn"
-          class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition whitespace-nowrap"
-          disabled
-          title="Select a device to save"
-        >
-          Save Device
-        </button>
-      </div>
-
-      <!-- Saved Devices -->
-      <div>
-        <h3 class="font-semibold mb-2">Saved Devices</h3>
-        <ul id="savedDevicesList" class="list-disc pl-5 max-h-40 overflow-auto border border-gray-200 rounded p-3 bg-gray-50"></ul>
-      </div>
-
-      <!-- Multi-Cam Live Preview -->
-      <div id="multiCamContainer" aria-label="Multiple camera live previews"></div>
-
-     <!-- Recording Controls -->
-<div class="mt-8 max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:gap-6 bg-white p-6 rounded-lg shadow-lg">
-  <label for="storageOption" class="text-gray-700 font-semibold mb-2 sm:mb-0 whitespace-nowrap">
-    Save to:
-  </label>
-
-  <select
-    id="storageOption"
-    class="flex-grow max-w-xs px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Camera Recorder & User Dashboard - Multi Cam</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .hidden {
+        display: none;
+      }
+      #videoPlayerContainer {
+        margin-top: 20px;
+      }
+      video {
+        max-width: 100%;
+        border-radius: 8px;
+      }
+      /* Grid for multi-cam live view */
+      #multiCamContainer {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      video.live-cam {
+        width: 100%;
+        height: 180px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 2px solid #3b82f6;
+        box-shadow: 0 0 8px #3b82f6;
+      }
+      /* Message Modal */
+      #messageModal {
+        transition: opacity 0.3s ease-in-out;
+      }
+      #messageModal.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #messageModal:not(.hidden) {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-cyan-100 to-blue-100 min-h-screen font-poppins text-gray-800 p-6"
   >
-    <option value="local" <%= user.storage === 'local' ? 'selected' : '' %>>Local Storage</option>
-    <option value="cloud" <%= user.storage === 'cloud' ? 'selected' : '' %>>Cloud Storage</option>
-  </select>
+    <% if (!user) { %>
+    <div class="max-w-md mx-auto mt-20 p-8 bg-white rounded-lg shadow-lg text-center">
+      <h1 class="text-2xl font-semibold mb-4">Welcome, Guest!</h1>
+      <p class="mb-6">
+        Please <a href="/login" class="text-blue-600 underline">log in</a> or
+        <a href="/register" class="text-blue-600 underline">register</a> to access your
+        dashboard.
+      </p>
+    </div>
+    <% } else { %>
 
-  <div class="mt-4 sm:mt-0 flex gap-4">
-    <button
-      id="startRecord"
-      disabled
-      class="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-md shadow-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-green-400"
-      aria-label="Start Recording"
-    >
-      <svg
-        class="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        viewBox="0 0 24 24"
-        xmlns="http://www.w3.org/2000/svg"
+    <div class="max-w-6xl mx-auto bg-white bg-opacity-90 rounded-lg shadow-lg p-8 space-y-10">
+      <!-- Header -->
+      <header
+        class="flex flex-wrap items-center gap-4 p-4 bg-white shadow-md rounded-md max-w-6xl mx-auto"
       >
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"></path>
-      </svg>
-      <span class="font-semibold">Start Recording</span>
-    </button>
+        <img
+          src="<%= user.photos?.[0]?.value || '/default-profile.png' %>"
+          alt="Profile Photo"
+          referrerpolicy="no-referrer"
+          onerror="this.onerror=null;this.src='/default-profile.png';"
+          class="w-16 h-16 rounded-full object-cover border-4 border-blue-500 bg-gray-100 shadow-md transition-transform duration-300 hover:scale-105"
+        />
+        <h1 class="text-3xl font-semibold flex-grow text-gray-800 select-none">
+          Hello, <%= user.displayName || user.name || 'User' %>
+        </h1>
+        <form action="/logout" method="POST" class="ml-auto">
+          <button
+            type="submit"
+            class="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-semibold transition-shadow duration-300 shadow-md hover:shadow-lg"
+          >
+            Logout
+          </button>
+        </form>
+      </header>
 
-    <button
-      id="stopRecord"
-      disabled
-      class="flex items-center gap-2 px-5 py-2 bg-red-600 text-white rounded-md shadow-md hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-red-400"
-      aria-label="Stop Recording"
+      <!-- Device Selection & Live Preview -->
+      <section class="mb-10 bg-white p-6 rounded shadow-md max-w-4xl mx-auto space-y-6">
+        <h2 class="text-2xl font-semibold mb-4 border-b border-gray-300 pb-2">
+          Manage Devices & Record
+        </h2>
+
+        <!-- Device Select + Connect + Save -->
+        <div class="flex gap-4 flex-wrap items-center">
+          <select
+            id="deviceSelect"
+            class="border border-gray-300 rounded px-3 py-2 w-full sm:w-auto flex-grow"
+          >
+            <option value="">Select Camera Device</option>
+          </select>
+          <button
+            id="connect-device-btn"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition whitespace-nowrap"
+          >
+            Connect Device
+          </button>
+          <button
+            id="save-device-btn"
+            class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition whitespace-nowrap"
+            disabled
+            title="Select a device to save"
+          >
+            Save Device
+          </button>
+        </div>
+
+        <!-- Saved Devices -->
+        <div>
+          <h3 class="font-semibold mb-2">Saved Devices</h3>
+          <ul
+            id="savedDevicesList"
+            class="list-disc pl-5 max-h-40 overflow-auto border border-gray-200 rounded p-3 bg-gray-50"
+          ></ul>
+        </div>
+
+        <!-- Multi-Cam Live Preview -->
+        <div id="multiCamContainer" aria-label="Multiple camera live previews"></div>
+
+        <!-- Recording Controls -->
+        <div
+          class="mt-8 max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:gap-6 bg-white p-6 rounded-lg shadow-lg"
+        >
+          <label for="storageOption" class="text-gray-700 font-semibold mb-2 sm:mb-0 whitespace-nowrap">
+            Save to:
+          </label>
+
+          <select
+            id="storageOption"
+            class="flex-grow max-w-xs px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          >
+            <option value="local" <%= user.storage === 'local' ? 'selected' : '' %>>
+              Local Storage (Browser)
+            </option>
+            <option value="cloud" <%= user.storage === 'cloud' ? 'selected' : '' %>>
+              Cloud Storage (Server)
+            </option>
+          </select>
+
+          <div class="mt-4 sm:mt-0 flex gap-4">
+            <button
+              id="startRecord"
+              disabled
+              class="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-md shadow-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-green-400"
+              aria-label="Start Recording"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 12h14M12 5l7 7-7 7"
+                ></path>
+              </svg>
+              <span class="font-semibold">Start Recording</span>
+            </button>
+
+            <button
+              id="stopRecord"
+              disabled
+              class="flex items-center gap-2 px-5 py-2 bg-red-600 text-white rounded-md shadow-md hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-red-400"
+              aria-label="Stop Recording"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+              <span class="font-semibold">Stop Recording</span>
+            </button>
+          </div>
+          <!-- Recording Timer Display -->
+          <div id="recordingTimer" class="mt-4 sm:mt-0 text-lg font-bold text-gray-700">00:00</div>
+        </div>
+
+        <!-- Video Playback Controls -->
+        <section
+          id="videoPlayerContainer"
+          class="hidden max-w-4xl mx-auto mt-8 bg-white p-6 rounded-lg shadow-lg"
+          aria-label="Video playback controls"
+        >
+          <video
+            id="videoPlayer"
+            controls
+            class="rounded-md w-full max-h-[24rem] object-contain"
+          ></video>
+          <div class="mt-6 flex flex-wrap justify-center gap-4">
+            <button
+              onclick="closePlayer()"
+              class="px-5 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition focus:outline-none focus:ring-4 focus:ring-gray-400"
+              aria-label="Close video player"
+            >
+              Close
+            </button>
+            <button
+              onclick="rewind()"
+              class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-400"
+              aria-label="Rewind video 10 seconds"
+            >
+              Rewind 10s
+            </button>
+            <button
+              onclick="fastForward()"
+              class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-400"
+              aria-label="Fast forward video 10 seconds"
+            >
+              Fast Forward 10s
+            </button>
+          </div>
+        </section>
+
+        <!-- Saved Videos Section -->
+        <% if (user && user.isPremium) { %>
+        <section
+          id="savedVideosSection"
+          class="max-w-4xl mx-auto mt-10 bg-white p-6 rounded-lg shadow-md"
+        >
+          <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h2 class="text-xl font-semibold">Saved Videos</h2>
+            <a
+              href="/subscription"
+              class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition shadow-md hover:shadow-lg"
+            >
+              Plus Member
+            </a>
+          </div>
+
+          <div class="mb-4">
+            <label class="font-medium mr-2">Storage Type:</label>
+            <select
+              id="videoSourceSelector"
+              class="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="local">Local Storage (Browser)</option>
+              <option value="cloud">Cloud Storage (Server)</option>
+            </select>
+          </div>
+
+          <div id="savedVideosList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Dynamically loaded videos -->
+          </div>
+        </section>
+        <% } else { %>
+        <section class="max-w-4xl mx-auto mt-10 bg-white p-6 rounded-lg shadow-md text-center">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">Access Saved Video History</h2>
+            <p class="mb-4 text-gray-600">Subscribe to our Premium plan to unlock your video history and other exclusive features!</p>
+            <a
+              href="/subscription"
+              class="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-md"
+            >
+              Subscribe Now
+            </a>
+        </section>
+        <% } %>
+      </section>
+    </div>
+
+    <% } %>
+
+    <!-- Message Modal -->
+    <div
+      id="messageModal"
+      class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50"
     >
-      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <rect x="6" y="6" width="12" height="12" rx="2" />
-      </svg>
-      <span class="font-semibold">Stop Recording</span>
-    </button>
-  </div>
-</div>
+      <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm mx-auto text-center">
+        <p id="modalMessage" class="text-lg font-semibold mb-4"></p>
+        <button
+          id="modalCloseBtn"
+          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          OK
+        </button>
+      </div>
+    </div>
 
-<!-- Video Playback Controls -->
-<section
-  id="videoPlayerContainer"
-  class="hidden max-w-4xl mx-auto mt-8 bg-white p-6 rounded-lg shadow-lg"
-  aria-label="Video playback controls"
->
-  <video
-    id="videoPlayer"
-    controls
-    class="rounded-md w-full max-h-[24rem] object-contain"
-  ></video>
-  <div class="mt-6 flex flex-wrap justify-center gap-4">
-    <button
-      onclick="closePlayer()"
-      class="px-5 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition focus:outline-none focus:ring-4 focus:ring-gray-400"
-      aria-label="Close video player"
-    >
-      Close
-    </button>
-    <button
-      onclick="rewind()"
-      class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-400"
-      aria-label="Rewind video 10 seconds"
-    >
-      Rewind 10s
-    </button>
-    <button
-      onclick="fastForward()"
-      class="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition focus:outline-none focus:ring-4 focus:ring-blue-400"
-      aria-label="Fast forward video 10 seconds"
-    >
-      Fast Forward 10s
-    </button>
-  </div>
-</section>
+    <script>
+      // DOM Elements
+      const deviceSelect = document.getElementById('deviceSelect');
+      const connectBtn = document.getElementById('connect-device-btn');
+      const saveDeviceBtn = document.getElementById('save-device-btn');
+      const livePreviewContainer = document.getElementById('multiCamContainer');
+      const startRecordBtn = document.getElementById('startRecord');
+      const stopRecordBtn = document.getElementById('stopRecord');
+      const storageOption = document.getElementById('storageOption');
+      const videoPlayer = document.getElementById('videoPlayer');
+      const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+      const savedDevicesList = document.getElementById('savedDevicesList');
+      const videoSourceSelector = document.getElementById('videoSourceSelector');
+      const savedVideosList = document.getElementById('savedVideosList');
+      const recordingTimerDisplay = document.getElementById('recordingTimer'); // Timer display element
 
-<!-- Saved Videos Section -->
-<section
-  id="savedVideosSection"
-  class="max-w-4xl mx-auto mt-10 bg-white p-6 rounded-lg shadow-md"
->
-  <h2 class="text-xl font-semibold mb-4 border-b pb-2">Saved Videos</h2>
+      // Modal elements
+      const messageModal = document.getElementById('messageModal');
+      const modalMessage = document.getElementById('modalMessage');
+      const modalCloseBtn = document.getElementById('modalCloseBtn');
 
-  <div class="mb-4">
-    <label class="font-medium mr-2">Storage Type:</label>
-    <select
-      id="videoSourceSelector"
-      class="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      <option value="local">Local Storage</option>
-      <option value="cloud">Cloud Storage</option>
-    </select>
-  </div>
+      let connectedDevices = new Map(); // Stores active streams and video elements
+      let recording = false;
+      let timerInterval; // Variable for the recording timer interval
+      let secondsRecorded = 0; // Variable to track recorded seconds
+      let mediaRecorders = new Map(); // Map to hold MediaRecorder instances for each connected device
 
-  <div id="savedVideosList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-    <!-- Dynamically loaded videos -->
-  </div>
-</section>
-
-
-
-<% } %>
-
-<script>
-    // DOM Elements
-    const deviceSelect = document.getElementById('deviceSelect');
-    const connectBtn = document.getElementById('connect-device-btn');
-    const saveDeviceBtn = document.getElementById('save-device-btn');
-    const livePreviewContainer = document.getElementById('multiCamContainer');
-    const startRecordBtn = document.getElementById('startRecord');
-    const stopRecordBtn = document.getElementById('stopRecord');
-    const storageOption = document.getElementById('storageOption');
-    const videoPlayer = document.getElementById('videoPlayer');
-    const videoPlayerContainer = document.getElementById('videoPlayerContainer');
-    const savedDevicesList = document.getElementById('savedDevicesList');
-    const videoSourceSelector = document.getElementById('videoSourceSelector');
-    const savedVideosList = document.getElementById('savedVideosList');
-    
-    let connectedDevices = new Map();
-    let recording = false;
-    
-    function loadSavedDevices() {
-      return JSON.parse(localStorage.getItem('savedCameraDevices') || '[]');
-    }
-    
-    function saveDevicesToStorage(devices) {
-      localStorage.setItem('savedCameraDevices', JSON.stringify(devices));
-    }
-    
-    function renderSavedDevices() {
-      const saved = loadSavedDevices();
-      savedDevicesList.innerHTML = '';
-      if (saved.length === 0) {
-        savedDevicesList.innerHTML = '<li class="text-gray-500">No saved devices</li>';
-        return;
+      /**
+       * Displays a custom modal message instead of the browser's alert.
+       * @param {string} message - The message to display.
+       */
+      function showMessage(message) {
+        modalMessage.textContent = message;
+        messageModal.classList.remove('hidden');
       }
-      saved.forEach(device => {
-        const li = document.createElement('li');
-        li.className = 'flex justify-between items-center';
-        li.textContent = device.label || device.deviceId;
-    
-        const btn = document.createElement('button');
-        btn.textContent = 'Connect';
-        btn.className = 'ml-4 px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs';
-        btn.onclick = () => connectCamera(device.deviceId);
-    
-        li.appendChild(btn);
-        savedDevicesList.appendChild(li);
-      });
-    }
-    
-    async function getCameraDevices() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        deviceSelect.innerHTML = '<option value="">Select Camera Device</option>';
-        videoDevices.forEach(device => {
-          const opt = document.createElement('option');
-          opt.value = device.deviceId;
-          opt.text = device.label || `Camera ${device.deviceId}`;
-          deviceSelect.appendChild(opt);
+
+      /**
+       * Hides the custom modal message.
+       */
+      function hideMessage() {
+        modalMessage.classList.add('hidden');
+      }
+
+      /**
+       * Formats seconds into a MM:SS string.
+       * @param {number} seconds - The total seconds.
+       * @returns {string} Formatted time string.
+       */
+      function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+      }
+
+      /**
+       * Loads saved camera device IDs and labels from local storage.
+       * @returns {Array<Object>} An array of saved device objects.
+       */
+      function loadSavedDevices() {
+        return JSON.parse(localStorage.getItem('savedCameraDevices') || '[]');
+      }
+
+      /**
+       * Saves the current list of camera devices to local storage.
+       * @param {Array<Object>} devices - The array of device objects to save.
+       */
+      function saveDevicesToStorage(devices) {
+        localStorage.setItem('savedCameraDevices', JSON.stringify(devices));
+      }
+
+      /**
+       * Renders the list of saved devices in the UI.
+       */
+      function renderSavedDevices() {
+        const saved = loadSavedDevices();
+        savedDevicesList.innerHTML = '';
+        if (saved.length === 0) {
+          savedDevicesList.innerHTML = '<li class="text-gray-500">No saved devices</li>';
+          return;
+        }
+        saved.forEach((device) => {
+          const li = document.createElement('li');
+          li.className = 'flex justify-between items-center py-1';
+          li.textContent = device.label || device.deviceId;
+
+          const buttonGroup = document.createElement('div');
+          buttonGroup.className = 'flex gap-2';
+
+          const connectBtn = document.createElement('button');
+          connectBtn.textContent = 'Connect';
+          connectBtn.className = 'px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs';
+          connectBtn.onclick = () => connectCamera(device.deviceId);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.className = 'px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs';
+          deleteBtn.onclick = () => deleteSavedDevice(device.deviceId);
+
+          buttonGroup.appendChild(connectBtn);
+          buttonGroup.appendChild(deleteBtn);
+          li.appendChild(buttonGroup);
+          savedDevicesList.appendChild(li);
         });
-        saveDeviceBtn.disabled = true;
-      } catch (e) {
-        console.error('Error fetching devices:', e);
       }
-    }
-    
-    async function connectCamera(deviceId) {
-      if (!deviceId) return alert('Please select a valid camera device.');
-      if (connectedDevices.has(deviceId)) return alert('Device already connected.');
-    
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } }, audio: false });
-        const videoElem = document.createElement('video');
-        videoElem.autoplay = true;
-        videoElem.playsInline = true;
-        videoElem.muted = true;
-        videoElem.className = 'live-cam';
-        videoElem.srcObject = stream;
-        livePreviewContainer.appendChild(videoElem);
-    
-        let chunks = [];
-        const recorder = new MediaRecorder(stream);
-    
-        recorder.ondataavailable = e => e.data.size > 0 && chunks.push(e.data);
-        recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: 'video/webm' });
-          chunks = [];
-          showRecordedVideo(blob);
-          if (storageOption.value === 'cloud') uploadVideo(blob);
-        };
-    
-        connectedDevices.set(deviceId, { stream, recorder, chunks, videoElem });
+
+      /**
+       * Deletes a saved device from local storage and updates the UI.
+       * @param {string} deviceIdToDelete - The ID of the device to delete.
+       */
+      function deleteSavedDevice(deviceIdToDelete) {
+        let saved = loadSavedDevices();
+        const initialLength = saved.length;
+        saved = saved.filter(device => device.deviceId !== deviceIdToDelete);
+
+        if (saved.length < initialLength) {
+          saveDevicesToStorage(saved);
+          renderSavedDevices();
+          showMessage(`Device ${deviceIdToDelete} deleted.`);
+
+          // If the deleted device was connected, stop its stream and remove its video element
+          if (connectedDevices.has(deviceIdToDelete)) {
+            const { stream, videoElem } = connectedDevices.get(deviceIdToDelete);
+            stream.getTracks().forEach(track => track.stop()); // Stop all tracks in the stream
+            videoElem.remove(); // Remove the video element from the DOM
+            connectedDevices.delete(deviceIdToDelete); // Remove from connected devices map
+            mediaRecorders.delete(deviceIdToDelete); // Remove from media recorders map
+            updateRecordingButtons(); // Update button states as connection count might change
+          }
+        } else {
+          showMessage(`Device ${deviceIdToDelete} not found in saved list.`);
+        }
+      }
+
+
+      /**
+       * Fetches available camera devices and populates the device selection dropdown.
+       */
+      async function getCameraDevices() {
+        try {
+          // Request camera permission first
+          // This will trigger a permission prompt if not already granted
+          await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+          deviceSelect.innerHTML = '<option value="">Select Camera Device</option>';
+          videoDevices.forEach((device) => {
+            const opt = document.createElement('option');
+            opt.value = device.deviceId;
+            opt.text = device.label || `Camera ${device.deviceId}`;
+            deviceSelect.appendChild(opt);
+          });
+          saveDeviceBtn.disabled = true; // Disable save button until a device is selected
+        } catch (e) {
+          console.error('Error fetching devices or permission denied:', e);
+          showMessage('Error accessing camera devices. Please ensure camera permissions are granted.');
+        }
+      }
+
+      /**
+       * Connects to a selected camera device and starts its live preview.
+       * @param {string} deviceId - The ID of the camera device to connect to.
+       */
+      async function connectCamera(deviceId) {
+        if (!deviceId) return showMessage('Please select a valid camera device.');
+        if (connectedDevices.has(deviceId)) return showMessage('Device already connected.');
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } },
+            audio: false, // Only video for now
+          });
+          const videoElem = document.createElement('video');
+          videoElem.autoplay = true;
+          videoElem.playsInline = true;
+          videoElem.muted = true; // Mute live preview to avoid echo
+          videoElem.className = 'live-cam';
+          videoElem.srcObject = stream;
+          livePreviewContainer.appendChild(videoElem);
+
+          // Initialize MediaRecorder for this stream
+          const recorder = new MediaRecorder(stream);
+          let chunks = []; // Array to store video data chunks for this specific recorder
+
+          recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+            }
+          };
+
+          recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            chunks = []; // Clear chunks for next recording
+            showRecordedVideo(blob); // Display the recorded video immediately
+            saveVideo(blob, storageOption.value); // Save the video based on selected storage option
+          };
+
+          connectedDevices.set(deviceId, { stream, videoElem });
+          mediaRecorders.set(deviceId, recorder); // Store recorder instance
+          updateRecordingButtons(); // Update button states
+        } catch (err) {
+          console.error('Error connecting to device:', err);
+          showMessage('Could not connect to device: ' + err.message);
+        }
+      }
+
+      /**
+       * Displays a recorded video blob in the video player.
+       * @param {Blob} blob - The video blob to play.
+       */
+      function showRecordedVideo(blob) {
+        videoPlayer.src = URL.createObjectURL(blob);
+        videoPlayerContainer.classList.remove('hidden');
+      }
+
+      /**
+       * Starts recording from all connected cameras.
+       */
+      function startRecording() {
+        if (recording) return; // Already recording
+        if (connectedDevices.size === 0) {
+          showMessage('Please connect at least one camera device to start recording.');
+          return;
+        }
+
+        let startedAny = false;
+        mediaRecorders.forEach((recorder, deviceId) => {
+          if (recorder.state === 'inactive') {
+            recorder.start();
+            console.log(`Started recording on device: ${deviceId}`);
+            startedAny = true;
+          }
+        });
+
+        if (startedAny) {
+          recording = true;
+          updateRecordingButtons();
+
+          // Start the recording timer
+          secondsRecorded = 0;
+          recordingTimerDisplay.textContent = formatTime(secondsRecorded);
+          timerInterval = setInterval(() => {
+            secondsRecorded++;
+            recordingTimerDisplay.textContent = formatTime(secondsRecorded);
+          }, 1000);
+          showMessage('Recording started!');
+        } else {
+          showMessage('No inactive recorders found to start. Are devices already recording or not connected?');
+        }
+      }
+
+      /**
+       * Stops recording from all connected cameras.
+       */
+      function stopRecording() {
+        if (!recording) return; // Not recording
+
+        mediaRecorders.forEach((recorder, deviceId) => {
+          if (recorder.state === 'recording') {
+            recorder.stop();
+            console.log(`Stopped recording on device: ${deviceId}`);
+          }
+        });
+
+        recording = false;
         updateRecordingButtons();
-      } catch (err) {
-        alert('Could not connect to device: ' + err.message);
+
+        // Stop and reset the recording timer
+        clearInterval(timerInterval);
+        secondsRecorded = 0;
+        recordingTimerDisplay.textContent = formatTime(secondsRecorded);
+        showMessage('Recording stopped!');
       }
-    }
-    
-    function showRecordedVideo(blob) {
-      videoPlayer.src = URL.createObjectURL(blob);
-      videoPlayerContainer.classList.remove('hidden');
-    }
-    
-    function startRecording() {
-      if (recording || connectedDevices.size === 0) return;
-      connectedDevices.forEach(({ recorder }) => recorder.state === 'inactive' && recorder.start());
-      recording = true;
-      updateRecordingButtons();
-    }
-    
-    function stopRecording() {
-      if (!recording) return;
-      connectedDevices.forEach(({ recorder }) => recorder.state === 'recording' && recorder.stop());
-      recording = false;
-      updateRecordingButtons();
-    }
-    
-    function updateRecordingButtons() {
-      startRecordBtn.disabled = connectedDevices.size === 0 || recording;
-      stopRecordBtn.disabled = !recording;
-    }
-    
-    function saveCurrentDevice() {
-      const deviceId = deviceSelect.value;
-      if (!deviceId) return alert('Please select a device to save.');
-    
-      const label = deviceSelect.options[deviceSelect.selectedIndex]?.text || '';
-      const devices = loadSavedDevices();
-    
-      if (devices.some(d => d.deviceId === deviceId)) return alert('Device already saved.');
-      devices.push({ deviceId, label });
-      saveDevicesToStorage(devices);
-      renderSavedDevices();
-      alert('Device saved successfully!');
-    }
-    
-    function closePlayer() {
-      videoPlayer.pause();
-      videoPlayer.src = '';
-      videoPlayerContainer.classList.add('hidden');
-    }
-    
-    function rewind() {
-      videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
-    }
-    
-    function fastForward() {
-      videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10);
-    }
-    
-    async function loadSavedVideos(type = 'local') {
-      savedVideosList.innerHTML = '<p class="text-gray-500">Loading...</p>';
-      try {
-        const response = await fetch(`/videos/${type}`);
-        const videos = await response.json();
-        savedVideosList.innerHTML = videos.length ? '' : '<p class="text-gray-500">No videos found.</p>';
-    
-        videos.forEach(url => {
-          const container = document.createElement('div');
-          container.className = 'bg-gray-50 p-3 rounded shadow hover:shadow-md transition';
-    
-          const video = document.createElement('video');
-          video.src = url;
-          video.controls = true;
-          video.className = 'w-full rounded';
-    
-          container.appendChild(video);
-          savedVideosList.appendChild(container);
-        });
-      } catch (err) {
-        console.error('Failed to load saved videos:', err);
-        savedVideosList.innerHTML = '<p class="text-red-600">Failed to load videos.</p>';
+
+      /**
+       * Updates the disabled state of the start and stop recording buttons.
+       */
+      function updateRecordingButtons() {
+        startRecordBtn.disabled = connectedDevices.size === 0 || recording;
+        stopRecordBtn.disabled = !recording;
       }
-    }
-    
-    async function uploadVideo(blob) {
-  const formData = new FormData();
-  formData.append('video', blob, `recording_${Date.now()}.webm`);
 
-  try {
-    const response = await fetch('http://localhost:5000/upload-to-cloud', {
-      method: 'POST',
-      body: formData,
-    });
+      /**
+       * Saves the currently selected device to local storage.
+       */
+      function saveCurrentDevice() {
+        const deviceId = deviceSelect.value;
+        if (!deviceId) return showMessage('Please select a device to save.');
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Upload failed with status ${response.status}: ${text}`);
-    }
+        const label = deviceSelect.options[deviceSelect.selectedIndex]?.text || '';
+        const devices = loadSavedDevices();
 
-    const data = await response.json();
-    console.log('✅ Uploaded video URL:', data.url);
-    alert('Uploaded to Cloudinary!');
-  } catch (error) {
-    console.error('❌ Upload error:', error);
-    alert('Upload failed: ' + error.message);
-  }
-}
+        if (devices.some((d) => d.deviceId === deviceId)) return showMessage('Device already saved.');
+        devices.push({ deviceId, label });
+        saveDevicesToStorage(devices);
+        renderSavedDevices(); // Re-render the saved devices list
+        showMessage('Device saved successfully!');
+      }
 
-    // Event Listeners
-    connectBtn.addEventListener('click', () => connectCamera(deviceSelect.value));
-    saveDeviceBtn.addEventListener('click', saveCurrentDevice);
-    deviceSelect.addEventListener('change', () => {
-      saveDeviceBtn.disabled = deviceSelect.value === '';
-    });
-    startRecordBtn.addEventListener('click', startRecording);
-    stopRecordBtn.addEventListener('click', stopRecording);
-    videoSourceSelector.addEventListener('change', () => loadSavedVideos(videoSourceSelector.value));
-    
-    // Expose player controls to global scope
-    window.closePlayer = closePlayer;
-    window.rewind = rewind;
-    window.fastForward = fastForward;
-    
-    // Initial Load
-    (async () => {
-      await getCameraDevices();
-      renderSavedDevices();
-      updateRecordingButtons();
-      loadSavedVideos('local');
-    })();
-    
-    // Example: using MediaRecorder API
-let mediaRecorder;
-let recordedChunks = [];
+      /**
+       * Closes the video player and clears its source.
+       */
+      function closePlayer() {
+        videoPlayer.pause();
+        videoPlayer.src = '';
+        videoPlayerContainer.classList.add('hidden');
+      }
 
-function startRecording(stream) {
-  recordedChunks = [];
-  mediaRecorder = new MediaRecorder(stream);
+      /**
+       * Rewinds the video player by 10 seconds.
+       */
+      function rewind() {
+        videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
+      }
 
-  mediaRecorder.ondataavailable = event => {
-    if (event.data.size > 0) {
-      recordedChunks.push(event.data);
-    }
-  };
+      /**
+       * Fast forwards the video player by 10 seconds.
+       */
+      function fastForward() {
+        videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10);
+      }
 
-  mediaRecorder.onstop = async () => {
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    await uploadVideo(blob);
-  };
+      /**
+       * Loads saved videos from the specified storage type (browser's localStorage or cloud server).
+       * @param {string} type - The storage type ('local' or 'cloud').
+       */
+      async function loadSavedVideos(type = 'local') {
+        savedVideosList.innerHTML = '<p class="text-gray-500">Loading...</p>';
+        try {
+          if (type === 'local') {
+            // Load from browser's localStorage
+            const localVideoUrls = JSON.parse(localStorage.getItem('recordedVideosLocal') || '[]');
+            savedVideosList.innerHTML = localVideoUrls.length
+              ? ''
+              : '<p class="text-gray-500">No local videos found.</p>';
 
-  mediaRecorder.start();
-}
+            localVideoUrls.forEach((url) => {
+              const container = document.createElement('div');
+              container.className = 'bg-gray-50 p-3 rounded shadow hover:shadow-md transition';
 
-async function uploadVideo(blob) {
-  const formData = new FormData();
-  formData.append('video', blob, 'recording.webm'); // filename is optional
+              const video = document.createElement('video');
+              video.src = url;
+              video.controls = true;
+              video.className = 'w-full rounded';
 
-  try {
-    const response = await fetch('/uploadVideo', {
-      method: 'POST',
-      body: formData,
-      credentials: 'include', // if you need cookies/session
-    });
-    const result = await response.json();
-    if (response.ok) {
-      console.log('Upload success:', result);
-    } else {
-      console.error('Upload failed:', result.error);
-    }
-  } catch (err) {
-    console.error('Upload error:', err);
-  }
-}
+              container.appendChild(video);
+              savedVideosList.appendChild(container);
+            });
+          } else if (type === 'cloud') {
+            // Placeholder for cloud videos.
+            // This would typically fetch a list of video URLs from your backend server.
+            savedVideosList.innerHTML = '<p class="text-gray-500">Cloud videos require a backend server to fetch. No videos displayed.</p>';
+            console.warn("Cloud video retrieval requires a backend server. Please implement the '/videos/cloud' endpoint.");
+            // Example of how you would fetch if you had a backend:
+            /*
+            const response = await fetch(`/videos/cloud`);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch videos from cloud storage. Status: ${response.status}`);
+            }
+            const videos = await response.json();
+            savedVideosList.innerHTML = videos.length
+              ? ''
+              : '<p class="text-gray-500">No cloud videos found.</p>';
 
-</script>
+            videos.forEach((url) => {
+              const container = document.createElement('div');
+              container.className = 'bg-gray-50 p-3 rounded shadow hover:shadow-md transition';
 
-</body>
+              const video = document.createElement('video');
+              video.src = url;
+              video.controls = true;
+              video.className = 'w-full rounded';
+
+              container.appendChild(video);
+              savedVideosList.appendChild(container);
+            });
+            */
+          }
+        } catch (err) {
+          console.error('Failed to load saved videos:', err);
+          savedVideosList.innerHTML = '<p class="text-red-600">Failed to load videos.</p>';
+          showMessage('Failed to load saved videos: ' + err.message);
+        }
+      }
+
+      /**
+       * Saves a video blob to the browser's local storage.
+       * @param {Blob} blob - The video blob to save.
+       */
+      function saveVideoToBrowserLocalStorage(blob) {
+        const url = URL.createObjectURL(blob);
+        const localVideoUrls = JSON.parse(localStorage.getItem('recordedVideosLocal') || '[]');
+        localVideoUrls.push(url);
+        localStorage.setItem('recordedVideosLocal', JSON.stringify(localVideoUrls));
+        showMessage('Video saved to browser local storage!');
+        loadSavedVideos('local'); // Reload local videos list after saving
+      }
+
+      /**
+       * Uploads a video blob to a cloud storage endpoint.
+       * This function now logs a message instead of making a failing network request.
+       * @param {Blob} blob - The video blob to upload.
+       */
+      async function uploadVideoToCloud(blob) {
+        console.warn("Cloud upload functionality requires a backend server. Simulating success for demonstration.");
+        console.log("Simulating upload of video blob:", blob);
+        // In a real application, you would perform the fetch request here:
+        /*
+        const formData = new FormData();
+        formData.append('video', blob, `recording_${Date.now()}.webm`);
+        try {
+          const response = await fetch('http://localhost:5000/upload-to-cloud', {
+            method: 'POST',
+            body: formData,
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Upload failed with status ${response.status}: ${text}`);
+          }
+          const data = await response.json();
+          console.log('✅ Uploaded video URL:', data.url);
+          showMessage('Uploaded to Cloudinary!');
+          loadSavedVideos('cloud');
+        } catch (error) {
+          console.error('❌ Upload error:', error);
+          showMessage('Cloud upload failed: ' + error.message);
+        }
+        */
+        // For now, just show a success message and reload cloud videos (which will show the placeholder)
+        showMessage('Simulated Cloud Upload: Backend required for actual upload!');
+        loadSavedVideos('cloud');
+      }
+
+      /**
+       * Unified function to save video based on selected storage type.
+       * Called when a MediaRecorder stops.
+       * @param {Blob} blob - The recorded video blob.
+       * @param {string} type - The selected storage type ('local' or 'cloud').
+       */
+      async function saveVideo(blob, type) {
+        if (type === 'cloud') {
+          await uploadVideoToCloud(blob);
+        } else if (type === 'local') {
+          saveVideoToBrowserLocalStorage(blob);
+        }
+      }
+
+      // Event Listeners
+      connectBtn.addEventListener('click', () => connectCamera(deviceSelect.value));
+      saveDeviceBtn.addEventListener('click', saveCurrentDevice);
+      deviceSelect.addEventListener('change', () => {
+        saveDeviceBtn.disabled = deviceSelect.value === '';
+      });
+      startRecordBtn.addEventListener('click', startRecording);
+      stopRecordBtn.addEventListener('click', stopRecording);
+      storageOption.addEventListener('change', () => {
+        // When storage option changes, reload saved videos based on the new selection
+        loadSavedVideos(storageOption.value);
+      });
+      videoSourceSelector.addEventListener('change', () => loadSavedVideos(videoSourceSelector.value));
+      modalCloseBtn.addEventListener('click', hideMessage); // Close button for the modal
+
+      // Expose player controls to global scope
+      window.closePlayer = closePlayer;
+      window.rewind = rewind;
+      window.fastForward = fastForward;
+
+      // Initial Load
+      (async () => {
+        await getCameraDevices();
+        renderSavedDevices();
+        updateRecordingButtons();
+        loadSavedVideos('local'); // Load local videos by default on page load
+      })();
+    </script>
+  </body>
 </html>

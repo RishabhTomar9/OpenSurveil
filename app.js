@@ -1,3 +1,4 @@
+// app.js (Updated)
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
@@ -10,8 +11,9 @@ const MongoStore = require('connect-mongo');
 const multer = require('multer');
 const cloudinary = require('./utils/cloudinary'); // Your cloudinary config
 const RecordedVideo = require('./models/RecordedVideo');
-const User = require('./models/User');
+const User = require('./models/User'); // Assuming User model has 'isPremium' field
 const Device = require('./models/Device');
+const fs = require('fs'); // Required for local file system operations
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -31,7 +33,7 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Serve static files from 'uploads'
 
 // Session config
 app.use(session({
@@ -70,6 +72,7 @@ passport.use(new GoogleStrategy({
         displayName: profile.displayName,
         email: profile.emails[0].value,
         photo: profile.photos[0].value,
+        isPremium: false, // Initialize subscription status
       });
     } else {
       user.photo = profile.photos[0].value;
@@ -112,27 +115,42 @@ app.get('/', (req, res) => res.render('login'));
 
 app.get('/dashboard', ensureAuthenticated, async (req, res) => {
   const devices = await Device.find({ userId: req.user._id });
-  const recordedVideos = await RecordedVideo.find({ userId: req.user._id }).sort({ uploadedAt: -1 });
-  res.render('dashboard', { user: req.user, devices, recordedVideos });
+  res.render('dashboard', { user: req.user, devices });
 });
 
 app.get('/multicam', ensureAuthenticated, (req, res) => res.render('multicam'));
 
-// Upload video route
-app.post('/uploadVideo', ensureAuthenticated, upload.single('video'), (req, res) => {
+// Route for subscription page
+app.get('/subscription', ensureAuthenticated, (req, res) => {
+  res.render('subscription', { user: req.user }); // Pass user object if needed on subscription page
+});
+
+// NEW: API route for free subscription
+app.post('/api/subscription/subscribe-free', ensureAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    if (user.isPremium) {
+      return res.json({ success: true, message: 'You are already subscribed!' });
+    }
+
+    user.isPremium = true; // Set user as premium
+    await user.save();
+    res.json({ success: true, message: '🎉 Subscription activated!' });
+  } catch (error) {
+    console.error('Error activating free subscription:', error);
+    res.status(500).json({ success: false, message: 'Failed to activate subscription. Please try again.' });
+  }
+});
+
+
+// NEW: Route for uploading to Cloudinary
+app.post('/upload-to-cloud', ensureAuthenticated, upload.single('video'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
 
-  // To save locally:
-  
-  const fs = require('fs');
-  const localPath = path.join(__dirname, 'uploads', `video_${Date.now()}.webm`);
-  fs.writeFile(localPath, req.file.buffer, err => {
-    if (err) return res.status(500).json({ error: 'Failed to save file locally' });
-    res.json({ message: 'Video saved locally', path: localPath });
-  });
-  
-
-  // To upload to Cloudinary (preferred)
   const uploadStream = cloudinary.uploader.upload_stream(
     {
       resource_type: 'video',
@@ -141,7 +159,7 @@ app.post('/uploadVideo', ensureAuthenticated, upload.single('video'), (req, res)
     },
     async (error, result) => {
       if (error) {
-        console.error(error);
+        console.error('Cloudinary upload error:', error);
         return res.status(500).json({ error: 'Cloudinary upload failed' });
       }
       try {
@@ -151,15 +169,65 @@ app.post('/uploadVideo', ensureAuthenticated, upload.single('video'), (req, res)
           url: result.secure_url,
         });
         await recordedVideo.save();
-        res.json({ message: 'Upload successful', video: recordedVideo });
+        res.json({ message: 'Upload successful', url: result.secure_url });
       } catch (dbErr) {
-        console.error(dbErr);
+        console.error('Failed to save video metadata to DB:', dbErr);
         res.status(500).json({ error: 'Failed to save video metadata' });
       }
     }
   );
 
   uploadStream.end(req.file.buffer);
+});
+
+// NEW: Route for saving video locally on the server
+app.post('/save-local-video', ensureAuthenticated, upload.single('video'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
+
+  // Ensure 'uploads' directory exists
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+  }
+
+  const filename = `video_${Date.now()}.webm`;
+  const localPath = path.join(uploadsDir, filename);
+
+  fs.writeFile(localPath, req.file.buffer, err => {
+    if (err) {
+      console.error('Failed to save file locally:', err);
+      return res.status(500).json({ error: 'Failed to save file locally' });
+    }
+    // Return a URL that can be accessed by the frontend
+    res.json({ message: 'Video saved locally', url: `/uploads/${filename}` });
+  });
+});
+
+// NEW: Route to get cloud videos
+app.get('/videos/cloud', ensureAuthenticated, async (req, res) => {
+  try {
+    const videos = await RecordedVideo.find({ userId: req.user._id }).sort({ uploadedAt: -1 });
+    const videoUrls = videos.map(video => video.url);
+    res.json(videoUrls);
+  } catch (err) {
+    console.error('Error fetching cloud videos:', err);
+    res.status(500).json({ error: 'Failed to fetch cloud videos' });
+  }
+});
+
+// NEW: Route to get local videos
+app.get('/videos/local', ensureAuthenticated, (req, res) => {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  fs.readdir(uploadsDir, (err, files) => {
+    if (err) {
+      console.error('Error reading local uploads directory:', err);
+      return res.status(500).json({ error: 'Failed to read local videos' });
+    }
+    const videoUrls = files
+      .filter(file => file.endsWith('.webm') || file.endsWith('.mp4')) // Filter for video files
+      .map(file => `/uploads/${file}`); // Create accessible URLs
+    res.json(videoUrls);
+  });
 });
 
 
